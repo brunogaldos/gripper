@@ -7,7 +7,7 @@
 #include <SimpleFOC.h>
 
 
-
+bool autoMode=false;
 
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94    // Chip Select (CS) pin
@@ -148,31 +148,31 @@ void loop() {
 
   float kp = 2.5, ki = 0.5, kd = 0.1;
   float setpoint = 0.3;
+  if (autoMode) {
+    if (!grabbingDetected) {
+      float error = setpoint - zDiff;
+      integral += error;
+      float derivative = error - previous_error;
+      previous_error = error;
 
-  if (!grabbingDetected) {
-    float error = setpoint - zDiff;
-    integral += error;
-    float derivative = error - previous_error;
-    previous_error = error;
+      target_voltage = kp * error + ki * integral + kd * derivative;
+      target_voltage = constrain(target_voltage, -6, 0); // Negative torque only
 
-    target_voltage = kp * error + ki * integral + kd * derivative;
-    target_voltage = constrain(target_voltage, -6, 0); // Negative torque only
+      // Fallback: Ensure at least -3V closing force if PID is too gentle
+      if (target_voltage > -3) {
+        target_voltage = -3;
+      }
 
-    // Fallback: Ensure at least -3V closing force if PID is too gentle
-    if (target_voltage > -3) {
-      target_voltage = -3;
-    }
+      // Grabbing detection logic
+      if (zDeviation > softThreshold && zDeviation < hardThreshold) {
+        grabbingDetected = true;
+        target_voltage = 0;
+        Serial.println("STOP");
+      }
 
-    // Grabbing detection logic
-    if (zDeviation > softThreshold && zDeviation < hardThreshold) {
-      grabbingDetected = true;
+    } else {
       target_voltage = 0;
-      Serial.print("STOP");
     }
-
-  } else {
-    target_voltage = 0;
-  }
     
   /**
   if (!grabbingDetected) {
@@ -192,11 +192,17 @@ void loop() {
   Serial.print("Raw Z: "); Serial.print(z_raw);
   Serial.print(" Filtered Z: "); Serial.print(zFiltered);
   Serial.print(" Deviation: "); Serial.println(zDeviation);
-  #else
-  // Manual control fallback
-  if (digitalRead(BUTTON1) == LOW) target_voltage = -3;
-  else if (digitalRead(BUTTON2) == LOW) target_voltage = 3;
-  else target_voltage = 0;
+
+} else {
+  // Manual Mode
+  if (digitalRead(BUTTON1) == LOW) {
+    target_voltage = -3;  // Close gripper
+  } else if (digitalRead(BUTTON2) == LOW) {
+    target_voltage = 3;   // Open gripper
+  } else {
+    target_voltage = 0;   // Hold position
+  }
+}
   #endif
 
   // FOC control
