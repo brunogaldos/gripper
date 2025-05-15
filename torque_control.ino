@@ -6,11 +6,8 @@
 #include "config.h"
 #include <SimpleFOC.h>
 
-//PID Parameters
-//float kp = 2.9; // 
-//float ki = 0.7; // 
-//float kd = 0.3; //  
 
+bool autoMode=false;
 
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94    // Chip Select (CS) pin
@@ -45,7 +42,7 @@ const uint8_t MEDIAN_WINDOW_SIZE = 5;          // must be odd
 static double zBuffer[MEDIAN_WINDOW_SIZE];
 static uint8_t zIndex = 0;
 static bool bufferFilled = false;
-
+static bool closeCommandReceived = false;
 // Helper: insertion sort for median
 void insertionSort(double arr[], int n) {
   for (int i = 1; i < n; i++) {
@@ -111,7 +108,6 @@ void loop() {
   #if ENABLE_MAGNETIC_SENSOR
   static float lastZ = 0;
   static bool grabbingDetected = false;
-  static bool closeCommandReceived = false;
   double x, y, z_raw;
 
   // Read raw magnetic field
@@ -123,7 +119,6 @@ void loop() {
   y -= yOffset;
   z_raw -= zOffset;
 
-  
 
 
   // Add to median buffer
@@ -142,9 +137,8 @@ void loop() {
   }
 
   float zDeviation = abs(zFiltered);
-  //float zDeviation = abs(zFiltered - lastZ);
-  //lastZ = zFiltered;
-  //Grabbing logic using filtered Z
+  float zDiff = abs(zFiltered - lastZ);
+  lastZ = zFiltered;
 
   if (Serial.available()) {
       String command = Serial.readStringUntil('\n');
@@ -158,23 +152,41 @@ void loop() {
       }
   }
 
-  const float softThreshold = 0.25;
-  const float hardThreshold = 0.35;
-  if (!grabbingDetected) {
-    if (zDeviation > softThreshold && zDeviation < hardThreshold) {
-      grabbingDetected = true;
+  
+  const float softThreshold = 0.20;
+  const float hardThreshold = 0.245;
+
+  static float integral = 0;
+  static float previous_error = 0;
+
+  float kp = 2.5, ki = 0.5, kd = 0.1;
+  float setpoint = 0.3;
+  if (autoMode) {
+    if (!grabbingDetected) {
+      float error = setpoint - zDiff;
+      integral += error;
+      float derivative = error - previous_error;
+      previous_error = error;
+
+      target_voltage = kp * error + ki * integral + kd * derivative;
+      target_voltage = constrain(target_voltage, -6, 0); // Negative torque only
+
+      // Fallback: Ensure at least -3V closing force if PID is too gentle
+      if (target_voltage > -3) {
+        target_voltage = -3;
+      }
+
+      // Grabbing detection logic
+      if (zDeviation > softThreshold && zDeviation < hardThreshold) {
+        grabbingDetected = true;
+        target_voltage = 0;
+        Serial.println("STOP");
+      }
+
+    } else {
       target_voltage = 0;
-      Serial.print("STOP");
-    } 
-    else {
-    target_voltage = -3;
-    
     }
-  } else {
-    target_voltage = 0;
-  }
-  
-  
+    
   /**
   if (!grabbingDetected) {
   if (zDeviation > grabbingThreshold) {
@@ -193,15 +205,18 @@ void loop() {
   Serial.print("Raw Z: "); Serial.print(z_raw);
   Serial.print(" Filtered Z: "); Serial.print(zFiltered);
   Serial.print(" Deviation: "); Serial.println(zDeviation);
-  #else
-  // Manual control fallback
-  if (closeCommandReceived){
-    target_voltage = -3;
+
+} else {
+  // Manual Mode
+  if (closeCommandReceived) {
+    target_voltage = -3;  // Close gripper
     Serial.println("CLOSING");
+  } else if (digitalRead(BUTTON2) == LOW) {
+    target_voltage = 3;   // Open gripper
+  } else {
+    target_voltage = 0;   // Hold position
   }
-   
-  else if (digitalRead(BUTTON2) == LOW) target_voltage = 3;
-  else target_voltage = 0;
+}
   #endif
 
   // FOC control
