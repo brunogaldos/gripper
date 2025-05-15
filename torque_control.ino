@@ -111,6 +111,7 @@ void loop() {
   #if ENABLE_MAGNETIC_SENSOR
   static float lastZ = 0;
   static bool grabbingDetected = false;
+  static bool closeCommandReceived = false;
   double x, y, z_raw;
 
   // Read raw magnetic field
@@ -122,6 +123,7 @@ void loop() {
   y -= yOffset;
   z_raw -= zOffset;
 
+  
 
 
   // Add to median buffer
@@ -140,43 +142,39 @@ void loop() {
   }
 
   float zDeviation = abs(zFiltered);
-  float zDiff = abs(zFiltered - lastZ);
-  lastZ = zFiltered;
+  //float zDeviation = abs(zFiltered - lastZ);
+  //lastZ = zFiltered;
+  //Grabbing logic using filtered Z
 
-  const float softThreshold = 0.20;
-  const float hardThreshold = 0.245;
+  if (Serial.available()) {
+      String command = Serial.readStringUntil('\n');
+      command.trim();
+      if (command == "CLOSE") {
+          closeCommandReceived = true;
+          Serial.println("ECHO: CLOSE");  // Added space for consistency
+      }
+      else if (command == "OPEN") {  // Example for other commands
+          Serial.println("ECHO: OPEN");
+      }
+  }
 
-  static float integral = 0;
-  static float previous_error = 0;
-
-  float kp = 2.5, ki = 0.5, kd = 0.1;
-  float setpoint = 0.3;
-
+  const float softThreshold = 0.25;
+  const float hardThreshold = 0.35;
   if (!grabbingDetected) {
-    float error = setpoint - zDiff;
-    integral += error;
-    float derivative = error - previous_error;
-    previous_error = error;
-
-    target_voltage = kp * error + ki * integral + kd * derivative;
-    target_voltage = constrain(target_voltage, -6, 0); // Negative torque only
-
-    // Fallback: Ensure at least -3V closing force if PID is too gentle
-    if (target_voltage > -3) {
-      target_voltage = -3;
-    }
-
-    // Grabbing detection logic
     if (zDeviation > softThreshold && zDeviation < hardThreshold) {
       grabbingDetected = true;
       target_voltage = 0;
       Serial.print("STOP");
+    } 
+    else {
+    target_voltage = -3;
+    
     }
-
   } else {
     target_voltage = 0;
   }
-    
+  
+  
   /**
   if (!grabbingDetected) {
   if (zDeviation > grabbingThreshold) {
@@ -197,7 +195,11 @@ void loop() {
   Serial.print(" Deviation: "); Serial.println(zDeviation);
   #else
   // Manual control fallback
-  if (digitalRead(BUTTON1) == LOW) target_voltage = -3;
+  if (closeCommandReceived){
+    target_voltage = -3;
+    Serial.println("CLOSING");
+  }
+   
   else if (digitalRead(BUTTON2) == LOW) target_voltage = 3;
   else target_voltage = 0;
   #endif
