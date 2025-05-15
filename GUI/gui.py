@@ -19,10 +19,8 @@ class SerialReaderGUI(QWidget):
         super().__init__()
         self.setWindowTitle("Gripper Control GUI")
         self.setFixedSize(900, 600)  # Increased window size
-        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.mode = "Manual"
         self.object_type = "Soft"
-        # self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights4--100ep\best.pt")
         self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights1--50ep\best.pt")
         self.init_ui()
         self.ser = None
@@ -121,7 +119,7 @@ class SerialReaderGUI(QWidget):
     def find_xmc1100_port(self):
         ports = serial.tools.list_ports.comports()
         for port in ports:
-            if 'JLink CDC UART Port (COM5)' in port.description or "USB Serial Device" in port.description:
+            if 'JLink CDC UART Port' in port.description or "USB Serial Device" in port.description:
                 return port.device
         return None
 
@@ -227,7 +225,9 @@ class SerialReaderGUI(QWidget):
                 try:
                     # Get the annotated frame
                     annotated_frame = results.plot()
-
+                    key = results.probs.top1
+                    class_name = results.names[int(key)]
+                    print(f"Detected: {class_name}")
                     # Convert to QImage
                     rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                     h, w, ch = rgb_image.shape
@@ -303,4 +303,6 @@ if __name__ == '__main__':
     apply_stylesheet(app, theme='dark_teal.xml')  # Try 'dark_teal.xml', 'dark_cyan.xml' etc.
     window = SerialReaderGUI()
     window.show()
+    window.raise_()  # Bring the window to the front
+    window.activateWindow()  # Focus the window
     sys.exit(app.exec())
