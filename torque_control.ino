@@ -6,11 +6,6 @@
 #include "config.h"
 #include <SimpleFOC.h>
 
-//PID Parameters
-//float kp = 2.9; // 
-//float ki = 0.7; // 
-//float kd = 0.3; //  
-
 
 
 
