@@ -18,11 +18,12 @@ class SerialReaderGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gripper Control GUI")
-        self.setFixedSize(550, 450)
+        self.setFixedSize(900, 600)  # Increased window size
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.mode = "Manual"
         self.object_type = "Soft"
-        self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights4--100ep\best.pt")
+        # self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights4--100ep\best.pt")
+        self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights1--50ep\best.pt")
         self.init_ui()
         self.ser = None
         self.baud_rate = 115200
@@ -49,6 +50,7 @@ class SerialReaderGUI(QWidget):
         left_layout = QVBoxLayout()
 
         self.label = QLabel("Z-Axis Magnetic Field (mT):")
+        self.label.setWordWrap(True)  # Enable word wrapping for the label
         left_layout.addWidget(self.label)
 
         self.z_value_box = QLabel("Disconnected")
@@ -59,6 +61,7 @@ class SerialReaderGUI(QWidget):
         cmd_layout = QHBoxLayout()
         self.cmd_entry = QLineEdit()
         self.send_button = QPushButton("Send")
+        self.send_button.setFixedSize(100, 30)  # Set fixed size for the button
         self.send_button.clicked.connect(self.send_command)
         cmd_layout.addWidget(QLabel("Send Command:"))
         cmd_layout.addWidget(self.cmd_entry)
@@ -66,6 +69,7 @@ class SerialReaderGUI(QWidget):
         left_layout.addLayout(cmd_layout)
 
         self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)  # Enable word wrapping for the status label
         left_layout.addWidget(self.status_label)
 
         # Live YOLO feed
@@ -78,14 +82,19 @@ class SerialReaderGUI(QWidget):
         right_layout = QVBoxLayout()
 
         self.gripper_group = QGroupBox("Gripper Control")
+        self.gripper_group.setFixedSize(200, 480)  # Set fixed size for the gripper control group
         grip_layout = QGridLayout()
 
         self.open_button = QPushButton("Open Gripper")
+        self.open_button.setFixedSize(150, 40)  # Adjust button size
         self.close_button = QPushButton("Close Gripper")
+        self.close_button.setFixedSize(150, 40)  # Adjust button size
         self.toggle_mode_button = QPushButton("Switch to Automatic Mode")
+        self.toggle_mode_button.setFixedSize(180, 40)  # Adjust button size
         self.object_dropdown = QComboBox()
-        self.object_dropdown.addItems(["Soft", "Hard"])
+        self.object_dropdown.setFixedSize(150, 30)  # Adjust dropdown size
         self.manual_grip_button = QPushButton("Grip Object (Manual)")
+        self.manual_grip_button.setFixedSize(180, 40)  # Adjust button size
 
         self.open_button.clicked.connect(self.dummy_open_gripper)
         self.close_button.clicked.connect(self.dummy_close_gripper)
@@ -93,12 +102,12 @@ class SerialReaderGUI(QWidget):
         self.manual_grip_button.clicked.connect(self.dummy_grip_manual)
         self.object_dropdown.currentTextChanged.connect(lambda val: setattr(self, 'object_type', val))
 
-        grip_layout.addWidget(self.open_button, 0, 0)
-        grip_layout.addWidget(self.close_button, 0, 1)
-        grip_layout.addWidget(self.toggle_mode_button, 1, 0, 1, 2)
-        grip_layout.addWidget(QLabel("Object Type:"), 2, 0)
-        grip_layout.addWidget(self.object_dropdown, 2, 1)
-        grip_layout.addWidget(self.manual_grip_button, 3, 0, 1, 2)
+        grip_layout.addWidget(self.open_button, 0, 0, 1, 2)  # Span across 2 columns
+        grip_layout.addWidget(self.close_button, 1, 0, 1, 2)  # Span across 2 columns
+        grip_layout.addWidget(self.toggle_mode_button, 2, 0, 1, 2)  # Span across 2 columns
+        grip_layout.addWidget(QLabel("Object Type:"), 3, 0)
+        grip_layout.addWidget(self.object_dropdown, 3, 1)
+        grip_layout.addWidget(self.manual_grip_button, 4, 0, 1, 2)  # Span across 2 columns
 
         self.gripper_group.setLayout(grip_layout)
         right_layout.addWidget(self.gripper_group)
