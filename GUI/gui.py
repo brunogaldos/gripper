@@ -3,6 +3,9 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
+from ultralytics import YOLO
+
+
 
 class SerialReaderGUI:
     def __init__(self, master):
@@ -178,6 +181,9 @@ class ConnectionMonitor:
 
 
 if __name__ == '__main__':
+    model_path = r"D:\TempOutsideOneDrive\weights\weights4--100ep\best.pt"
+    model = YOLO(r"weights\weights4--100ep\best.pt")  # load an official model
+    results = model.predict(source=0, show=True)  # predict with the model
     root = tk.Tk()
     app = SerialReaderGUI(root)
     root.mainloop()
