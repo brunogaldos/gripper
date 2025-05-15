@@ -151,14 +151,13 @@ y -= yOffset;
 z -= zOffset;
 
 // Calculate z-axis deviation
-float zDeviation = abs(z - lastZ);
-lastZ = z;
+float zDeviation = abs(z);
 
 // Grabbing detection threshold (adjust as needed)
-const float grabbingThreshold = 1.3;
-
+const float softThreshold = 0.30; //this is for the baloon
+const float hardThreshold= 0.40;  //this trehsold for wooden 
 if (!grabbingDetected) {
-if (zDeviation > grabbingThreshold) {
+if (zDeviation > softThreshold && zDeviation<hardThreshold) {
 grabbingDetected = true; // Object detected
 target_voltage = 0; // Stop motor
 } else {
@@ -174,7 +173,6 @@ target_voltage = 0; // Maintain hold
 //Serial.print(y);
 //Serial.print(",");
 Serial.println(z);
-Serial.println(zDeviation);
 #else
 // Manual control fallback
 if (digitalRead(BUTTON1) == LOW) {
@@ -222,4 +220,3 @@ yOffset = sumY / CALIBRATION_SAMPLES;
 zOffset = sumZ / CALIBRATION_SAMPLES;
 }
 #endif
-
