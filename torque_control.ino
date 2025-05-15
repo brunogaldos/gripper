@@ -42,7 +42,7 @@ const uint8_t MEDIAN_WINDOW_SIZE = 5;          // must be odd
 static double zBuffer[MEDIAN_WINDOW_SIZE];
 static uint8_t zIndex = 0;
 static bool bufferFilled = false;
-
+static bool closeCommandReceived = false;
 // Helper: insertion sort for median
 void insertionSort(double arr[], int n) {
   for (int i = 1; i < n; i++) {
@@ -140,6 +140,19 @@ void loop() {
   float zDiff = abs(zFiltered - lastZ);
   lastZ = zFiltered;
 
+  if (Serial.available()) {
+      String command = Serial.readStringUntil('\n');
+      command.trim();
+      if (command == "CLOSE") {
+          closeCommandReceived = true;
+          Serial.println("ECHO: CLOSE");  // Added space for consistency
+      }
+      else if (command == "OPEN") {  // Example for other commands
+          Serial.println("ECHO: OPEN");
+      }
+  }
+
+  
   const float softThreshold = 0.20;
   const float hardThreshold = 0.245;
 
@@ -195,8 +208,9 @@ void loop() {
 
 } else {
   // Manual Mode
-  if (digitalRead(BUTTON1) == LOW) {
+  if (closeCommandReceived) {
     target_voltage = -3;  // Close gripper
+    Serial.println("CLOSING");
   } else if (digitalRead(BUTTON2) == LOW) {
     target_voltage = 3;   // Open gripper
   } else {
