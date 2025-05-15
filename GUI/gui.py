@@ -22,7 +22,7 @@ class SerialReaderGUI(QWidget):
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.mode = "Manual"
         self.object_type = "Soft"
-        self.yolo_model = YOLO(r"/home/amolk/EESTEC HACKA/gripper/weights/weights4--100ep/best.pt")
+        self.yolo_model = YOLO(r"/home/amolk/EESTEC HACKA/gripper/weights/best.pt") #REPLACE WITH YOUR PATH
         self.init_ui()
         self.ser = None
         self.baud_rate = 115200
