@@ -23,6 +23,7 @@
 #include "config.h"
 #include <SimpleFOC.h>
 
+
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94 // Chip Select (CS) pin
 #define PIN_SPI1_MOSI 69 // MOSI pin
