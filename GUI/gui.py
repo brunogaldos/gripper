@@ -7,18 +7,22 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QLineEdit, QComboBox, QGroupBox, QGridLayout, QMessageBox
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from qt_material import apply_stylesheet
+from PyQt6.QtGui import QImage, QPixmap
+import cv2
+from ultralytics import YOLO
+
 
 class SerialReaderGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gripper Control GUI")
         self.setFixedSize(550, 450)
-
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.mode = "Manual"
         self.object_type = "Soft"
-
+        self.yolo_model = YOLO(r"D:\TempOutsideOneDrive\weights\weights4--100ep\best.pt")
         self.init_ui()
         self.ser = None
         self.baud_rate = 115200
@@ -34,18 +38,22 @@ class SerialReaderGUI(QWidget):
         self.thread = threading.Thread(target=self.read_serial)
         self.thread.daemon = True
         self.thread.start()
-
+        self.run_yolo_inference()
         self.connection_monitor = ConnectionMonitor(self)
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        # Main layout
+        main_layout = QHBoxLayout()
+
+        # Left layout for live feed and status
+        left_layout = QVBoxLayout()
 
         self.label = QLabel("Z-Axis Magnetic Field (mT):")
-        layout.addWidget(self.label)
+        left_layout.addWidget(self.label)
 
         self.z_value_box = QLabel("Disconnected")
         self.z_value_box.setStyleSheet("background-color: white; padding: 10px;")
-        layout.addWidget(self.z_value_box)
+        left_layout.addWidget(self.z_value_box)
 
         # Command Entry
         cmd_layout = QHBoxLayout()
@@ -55,12 +63,20 @@ class SerialReaderGUI(QWidget):
         cmd_layout.addWidget(QLabel("Send Command:"))
         cmd_layout.addWidget(self.cmd_entry)
         cmd_layout.addWidget(self.send_button)
-        layout.addLayout(cmd_layout)
+        left_layout.addLayout(cmd_layout)
 
         self.status_label = QLabel("")
-        layout.addWidget(self.status_label)
+        left_layout.addWidget(self.status_label)
 
-        # Gripper Controls
+        # Live YOLO feed
+        self.video_label = QLabel("Live YOLO Feed")
+        self.video_label.setFixedSize(640, 480)  # Set to 640x480 resolution
+        self.video_label.setStyleSheet("background-color: black;")
+        left_layout.addWidget(self.video_label)
+
+        # Right layout for gripper controls
+        right_layout = QVBoxLayout()
+
         self.gripper_group = QGroupBox("Gripper Control")
         grip_layout = QGridLayout()
 
@@ -85,14 +101,18 @@ class SerialReaderGUI(QWidget):
         grip_layout.addWidget(self.manual_grip_button, 3, 0, 1, 2)
 
         self.gripper_group.setLayout(grip_layout)
-        layout.addWidget(self.gripper_group)
+        right_layout.addWidget(self.gripper_group)
 
-        self.setLayout(layout)
+        # Add left and right layouts to the main layout
+        main_layout.addLayout(left_layout)
+        main_layout.addLayout(right_layout)
+
+        self.setLayout(main_layout)
 
     def find_xmc1100_port(self):
         ports = serial.tools.list_ports.comports()
         for port in ports:
-            if "J-Link - CDC" in port.description or "USB Serial Device" in port.description:
+            if 'JLink CDC UART Port (COM5)' in port.description or "USB Serial Device" in port.description:
                 return port.device
         return None
 
@@ -117,9 +137,14 @@ class SerialReaderGUI(QWidget):
                     elif "ECHO:" in line:
                         echo = line.replace("ECHO:", "").strip()
                         self.status_label.setText(f"Board received: {echo}")
+                elif not self.is_connected():
+                    self.z_value_box.setText("Disconnected")
+                    self.z_value_box.setStyleSheet("color: orange")
+                    self.status_label.setText("Device disconnected")
             except (serial.SerialException, OSError):
                 self.z_value_box.setText("Disconnected")
                 self.z_value_box.setStyleSheet("color: orange")
+                self.status_label.setText("Device disconnected")
                 if self.ser:
                     self.ser.close()
                     self.ser = None
@@ -177,6 +202,48 @@ class SerialReaderGUI(QWidget):
             self.manual_grip_button.setEnabled(True)
             self.status_label.setText("Switched to Manual Mode")
 
+    def run_yolo_inference(self):
+        if hasattr(self, 'yolo_running') and self.yolo_running:
+            self.status_label.setText("YOLO live feed already running.")
+            return
+        self.status_label.setText("Starting YOLO live feed...")
+        self.yolo_running = True
+        self.yolo_thread = threading.Thread(target=self._yolo_live_worker)
+        self.yolo_thread.daemon = True
+        self.yolo_thread.start()
+
+    def _yolo_live_worker(self):
+        try:
+            for results in self.yolo_model.predict(source=0, stream=True):  # Stream frames from the webcam
+                try:
+                    # Get the annotated frame
+                    annotated_frame = results.plot()
+
+                    # Convert to QImage
+                    rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                    h, w, ch = rgb_image.shape
+                    bytes_per_line = ch * w
+                    qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                    pixmap = QPixmap.fromImage(qt_image).scaled(
+                        640, 480, Qt.AspectRatioMode.KeepAspectRatio  # Match QLabel size
+                    )
+
+                    # Show in QLabel
+                    self.video_label.setPixmap(pixmap)
+
+                    # Stop the loop if YOLO is no longer running
+                    if not self.yolo_running:
+                        break
+                except Exception as e:
+                    self.status_label.setText(f"YOLO inference error: {str(e)}")
+                    break
+        except Exception as e:
+            self.status_label.setText(f"Error: {str(e)}")
+        finally:
+            self.yolo_running = False
+            self.status_label.setText("YOLO live feed stopped.")
+
+
 class ConnectionMonitor:
     def __init__(self, gui_instance):
         self.gui = gui_instance
@@ -220,6 +287,7 @@ class ConnectionMonitor:
         self.stop_monitor = True
         if self.monitor_thread.is_alive():
             self.monitor_thread.join()
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
