@@ -141,26 +141,43 @@ void loop() {
   }
 
   float zDeviation = abs(zFiltered);
-  //float zDeviation = abs(zFiltered - lastZ);
-  //lastZ = zFiltered;
-  //Grabbing logic using filtered Z
+  float zDiff = abs(zFiltered - lastZ);
+  lastZ = zFiltered;
 
-  
-  const float softThreshold = 0.25;
-  const float hardThreshold = 0.35;
+  const float softThreshold = 0.20;
+  const float hardThreshold = 0.245;
+
+  static float integral = 0;
+  static float previous_error = 0;
+
+  float kp = 2.5, ki = 0.5, kd = 0.1;
+  float setpoint = 0.3;
+
   if (!grabbingDetected) {
+    float error = setpoint - zDiff;
+    integral += error;
+    float derivative = error - previous_error;
+    previous_error = error;
+
+    target_voltage = kp * error + ki * integral + kd * derivative;
+    target_voltage = constrain(target_voltage, -6, 0); // Negative torque only
+
+    // Fallback: Ensure at least -3V closing force if PID is too gentle
+    if (target_voltage > -3) {
+      target_voltage = -3;
+    }
+
+    // Grabbing detection logic
     if (zDeviation > softThreshold && zDeviation < hardThreshold) {
       grabbingDetected = true;
       target_voltage = 0;
       Serial.print("STOP");
-    } else {
-      target_voltage = -3;
     }
+
   } else {
     target_voltage = 0;
   }
-  
-  
+    
   /**
   if (!grabbingDetected) {
   if (zDeviation > grabbingThreshold) {
