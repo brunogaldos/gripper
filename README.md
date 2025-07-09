@@ -57,3 +57,9 @@ This project demonstrates an adaptive, torque-controlled robotic gripper capable
 ---
 
 By uniting robust magnetic sensing, refined PID control, AI-driven vision, and a user-centric GUI, this gripper delivers reliable, adaptive performance across diverse pick-and-place tasks.  
+
+
+https://github.com/user-attachments/assets/20fb79ab-a6c5-40cd-9c8c-7b2fdb01e51a
+
+
+
